@@ -1,0 +1,230 @@
+options {
+LOOKAHEAD = 2;
+STATIC = false;
+OUTPUT_DIRECTORY = "output";
+FORCE_LA_CHECK = true;
+}
+
+PARSER_BEGIN(ProjLangASTParser)
+	public class ProjLangASTParser {
+    
+	}
+PARSER_END(ProjLangASTParser)
+
+// Lexer rules
+SKIP:
+{
+  " "
+| "\t"
+| "\n"
+| "\r"
+}
+
+
+/* Semi */
+TOKEN:
+{
+  <SEMI: ";"> 
+}
+
+/* EQ */
+TOKEN:
+{
+  <EQ: "="> 
+}
+
+/* ASSIGNMENT */
+TOKEN:
+{
+  <ASSIGNMENT: ":="> 
+}
+
+/* LT */
+TOKEN:
+{
+  <LT: "<"> 
+}
+
+/* LPAR */
+TOKEN:
+{
+  <LPAR: "("> 
+}
+
+/* RPAR */
+TOKEN:
+{
+  <RPAR: ")"> 
+}
+
+/* ADDOP */
+TOKEN:
+{
+  <ADDOP:  "+" | "-" | "|"> 
+}
+
+/* MULOP */
+TOKEN:
+{
+  <MULOP: "*" | "/" | "&" > 
+}
+
+/* NOT */
+TOKEN:
+{
+  <NOT: "!"> 
+}
+
+/* IF */
+TOKEN:
+{
+  <IF: "if"> 
+}
+
+
+/* THEN */
+TOKEN:
+{
+  <THEN: "then"> 
+}
+
+/* ELSE */
+TOKEN:
+{
+  <ELSE: "else"> 
+}
+
+/* WHILE */
+TOKEN:
+{
+  <WHILE: "while"> 
+}
+
+/* FOR */
+TOKEN:
+{
+  <FOR: "for"> 
+}
+
+/* DO */
+TOKEN:
+{
+  <DO: "do"> 
+}
+
+
+/* LET */
+TOKEN:
+{
+  <LET: "let"> 
+}
+
+/* FUN */
+TOKEN:
+{
+  <FUN: "fun"> 
+}
+
+/* VAL */
+TOKEN:
+{
+  <VAL: "val"> 
+}
+
+/* IN */
+TOKEN:
+{
+  <IN: "in"> 
+}
+
+/* END */
+TOKEN:
+{
+  <END: "end"> 
+}
+
+/* TRUE */
+TOKEN:
+{
+  <TRUE: "true"> 
+}
+
+/* FALSE */
+TOKEN:
+{
+  <FALSE: "false"> 
+}
+
+/* LCURL */
+TOKEN:
+{
+  <LCURL: "{"> 
+}
+
+/* RCURL */
+TOKEN:
+{
+  <RCURL: "}"> 
+}
+
+/* Numbers */
+TOKEN :
+{
+  < NUM: ( ["0"-"9"] )+ >
+}
+
+/* Identifiers */
+TOKEN :
+{
+  < ID: ["a"-"z","A"-"Z"] ( ["a"-"z","A"-"Z","0"-"9"] )* >
+}
+
+// Parser rules
+
+Expr input(): {Expr e1;} { e1=expr() <SEMI> {return e1;} } //EOF is predefined token
+
+Expr expr(): {Expr e1;Expr e2;Expr e3; Token fname; Token argName;} { <IF> e1=expr() <THEN> e2=expr() <ELSE> e3=expr() {e1= new IfExp(e1,e2,e3);return e1; }
+| <LET>  <VAL> fname=<ID> <EQ> e1=expr() <IN> e2=expr() <END> {e1= new LetValExp(fname.image,e1,e2); return e1;}
+| <LET>  <FUN> fname=<ID> <LPAR> argName=<ID> <RPAR> <EQ> e1=expr() <IN> e2=expr() <END> {e1=new LetFunExp(fname.image,argName.image,e1,e2); return e1;}
+| <WHILE> e1=expr() <DO> e2=expr() {e1= new WhileExp(e1,e2); return e1;}
+| <LCURL> e1=expr() ( <SEMI> e2=expr() {e1= new SeqExp(e1,e2);} )* <RCURL> {return e1;}
+| fname=<ID> <ASSIGNMENT> e1=expr() {e1=new AssnExp(fname.image,e1); return e1;}
+| <NOT> e1=expr() {e1= new NotExp(e1); return e1;}
+| e1=relexpr() {return e1;}
+ }
+
+
+Expr factor(): {Expr e1; Token n;} {
+  <NUM> {e1 = new IntConst(Integer.parseInt(token.image)); return e1;}
+| <TRUE>  {e1 = new BoolConst(Boolean.parseBoolean(token.image)); return e1;}
+| <FALSE>  {e1 = new BoolConst(Boolean.parseBoolean(token.image)); return e1;}
+| n=<ID>  <LPAR> e1=expr(){e1 = new AppExp(n.image,e1);} <RPAR> {return e1;}
+| <ID> {e1 = new VarExp(token.image); return e1;}
+| <LPAR> e1=expr() {return e1;} <RPAR> 
+}
+Expr term(): {Expr e1; Expr e2; Token op;} {
+	e1=factor() ( op=<MULOP> e2=factor() { if(op.image.equals("*"))
+											e1=new BinExp(BinOp.TIMES,e1,e2);
+										else if(op.image.equals("/"))
+											e1=new BinExp(BinOp.DIV,e1,e2);
+										else if(op.image.equals("&"))
+											e1=new BinExp(BinOp.AND,e1,e2);
+										} )* {return e1;}
+}
+
+Expr arithexpr(): { Expr e1; Expr e2; Token op;} { e1=term() ( op=<ADDOP> e2=term() { if(op.image.equals("+"))
+											e1=new BinExp(BinOp.PLUS,e1,e2);
+										else if(op.image.equals("-"))
+											e1=new BinExp(BinOp.MINUS,e1,e2);
+										else if(op.image.equals("|"))
+											e1=new BinExp(BinOp.OR,e1,e2);
+										} )* {return e1;}
+}
+
+Expr relexpr(): { Expr e1; Expr e2;Token op;} { e1=arithexpr() ( ( op=<LT> | op=<EQ> ) e2=arithexpr() { 
+														if(op.image.equals("<"))
+															e1=new BinExp(BinOp.LT,e1,e2);
+														else if(op.image.equals("="))
+															e1=new BinExp(BinOp.EQ,e1,e2);
+														} )? {return e1;} 
+}
